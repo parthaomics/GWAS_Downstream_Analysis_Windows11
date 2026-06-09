@@ -1,0 +1,9 @@
+{
+  "setup": {
+    "root_dir": "C:/Partha_Mike/plink",
+    "config_dir": "PlinkUtils/setup_config_files",
+    "fname_png": "PlinkUtils/Images/plink_logo.png",
+    "map_ped": "PlinkUtils/map_ped",
+    "plink_exe": "exe_dir/plink.exe"
+  }
+}

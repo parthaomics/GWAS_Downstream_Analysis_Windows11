@@ -1,0 +1,9 @@
+{
+  "fnames": {
+    "bp_lower": "28780000",
+    "bp_upper": "28880000",
+    "out_dir": "C:\\Partha_Mike\\plink\\output",
+    "plink_chr": "7",
+    "root_name": "Plink_Output"
+  }
+}
