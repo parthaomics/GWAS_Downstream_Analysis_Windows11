@@ -1,6 +1,6 @@
 __prog__ = "initialise_funcs.py"
 __version__ = "1.0.0"
-# Author:      Mike Martin & Partha Talukdar
+# Author:      Michal Martin & Partha Talukdar
 # Created:     09/06/2026
 # Version history
 # ---------------
