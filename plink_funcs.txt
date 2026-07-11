@@ -1,7 +1,7 @@
 #-------------------------------------------------------------------------------
 # Name:        plink_funcs.py
 # Purpose:     helper functions for PLINK utility GUI
-# Author:      Mike Martin & Partha Talukdar
+# Author:      Michal Martin & Partha Talukdar
 # Created:     09/06/2026
 # Version:     1.0.0
 #-------------------------------------------------------------------------------
@@ -290,16 +290,24 @@ def ld_decay_graph(form):
         print("No binned LD values available.")
         return
     
-    plt.figure(figsize=(8, 5))
-    plt.plot(bin_x, bin_y, color="red", linewidth=2)
-    plt.xlabel("Physical distance (bp)")
-    plt.ylabel("LD ($r^2$)")
-    plt.title("LD Decay Plot")
-    plt.ylim(0, 1)
+    fig, ax = plt.subplots(figsize=(8, 5))
+    ax.plot(bin_x, bin_y, color="red", linewidth=2)
+
+    ax.set_xlabel("Physical distance (bp)")
+    ax.set_ylabel("LD ($r^2$)")
+
+    ax.set_xlim(left=0)
+    ax.set_ylim(bottom=0, top=1)
+
+    ax.spines["left"].set_position(("data", 0))
+    ax.spines["bottom"].set_position(("data", 0))
+    ax.spines["right"].set_visible(False)
+    ax.spines["top"].set_visible(False)
+
     plt.tight_layout()
     plt.savefig(png_file, dpi=200)
     plt.show()
-
+    
     print("LD decay graph saved to: " + png_file)
     webbrowser.open("file://" + os.path.abspath(png_file))
 
@@ -607,7 +615,7 @@ def one_way_anova(groups):
     total_n = sum(len(g) for g in groups)
 
     if k < 2 or total_n <= k:
-        return "", "", "", ""
+        return "", "", "", "", ""
 
     group_means = [sum(g) / len(g) for g in groups]
     grand_mean = sum(sum(g) for g in groups) / total_n
@@ -617,23 +625,27 @@ def one_way_anova(groups):
     for g, gm in zip(groups, group_means):
         for x in g:
             ss_within += (x - gm) ** 2
+    ss_total = ss_between + ss_within
 
     df_between = k - 1
     df_within = total_n - k
     if df_within <= 0:
-        return "", "", "", ""
+        return "", "", "", "", ""
 
     ms_between = ss_between / df_between
     ms_within = ss_within / df_within
+    anova_r2 = ""
+    if ss_total > 0:
+        anova_r2 = ss_between / ss_total
     if ms_within == 0:
-        return "", df_between, df_within, ""
+        return "", df_between, df_within, "", anova_r2
 
     f_stat = ms_between / ms_within
     p_value = ""
     if scipy_f_distribution is not None:
         p_value = scipy_f_distribution.sf(f_stat, df_between, df_within)
 
-    return f_stat, df_between, df_within, p_value
+    return f_stat, df_between, df_within, p_value, anova_r2
 
 
 def _load_phenotype_and_merge(ped_df, pheno_file, trait_column):
@@ -1112,6 +1124,7 @@ def two_snp_pair_anova(form):
                 "observed_haplotypes": "",
                 "group_summary": "",
                 "f_statistic": "",
+                "anova_r2": "",
                 "df_between": "",
                 "df_within": "",
                 "p_value": "",
@@ -1123,7 +1136,7 @@ def two_snp_pair_anova(form):
         ordered_haps = sorted(genotype_groups.keys())
         grouped_values = [genotype_groups[h] for h in ordered_haps]
 
-        f_stat, df_between, df_within, p_value = one_way_anova(grouped_values)
+        f_stat, df_between, df_within, p_value, anova_r2 = one_way_anova(grouped_values)
 
         group_summary_parts = []
         for hap in ordered_haps:
@@ -1151,6 +1164,7 @@ def two_snp_pair_anova(form):
             "observed_haplotypes": "; ".join(ordered_haps),
             "group_summary": "; ".join(group_summary_parts),
             "f_statistic": "" if f_stat == "" else round(f_stat, 6),
+            "anova_r2": "" if anova_r2 == "" else round(anova_r2, 6),
             "df_between": df_between,
             "df_within": df_within,
             "p_value": p_value,
@@ -1163,6 +1177,30 @@ def two_snp_pair_anova(form):
         ascending=[False, True],
         na_position="last"
     )
+    results_df = results_df[[
+        "chrom_a",
+        "pos_a",
+        "id_a",
+        "chrom_b",
+        "pos_b",
+        "id_b",
+        "start_bp",
+        "end_bp",
+        "distance_bp",
+        "r2",
+        "trait",
+        "non_missing_samples",
+        "haplotype_groups",
+        "observed_haplotypes",
+        "group_summary",
+        "f_statistic",
+        "anova_r2",
+        "df_between",
+        "df_within",
+        "p_value",
+        "significant",
+        "status",
+    ]]
 
     with pd.ExcelWriter(output_xlsx, engine="openpyxl") as writer:
         results_df.to_excel(writer, sheet_name="anova_results", index=False)
@@ -1190,7 +1228,7 @@ def snp_trait_analysis(form):
         phenotype_file = os.path.join(os.path.dirname(out_dir), "Fe_Phene.csv")
 
     merged_file = os.path.join(out_dir, root_name + "_genotype_phenotype_merged.csv")
-    results_file = os.path.join(out_dir, root_name + "_snp_trait_anova_results.csv")
+    results_file = os.path.join(out_dir, root_name + "_snp_trait_anova_results.xlsx")
     boxplot_dir = os.path.join(out_dir, root_name + "_anova_significant_boxplots")
 
     trait_column = "AWD_Fe57_grain_Y1"
@@ -1313,7 +1351,7 @@ def snp_trait_analysis(form):
         k = len(filtered_groups)
         total_n = sum(len(group) for group in filtered_groups)
         if k < 2 or total_n <= k:
-            return "", "", "", ""
+            return "", "", "", "", ""
 
         group_means = [sum(group) / len(group) for group in filtered_groups]
         grand_mean = sum(sum(group) for group in filtered_groups) / total_n
@@ -1322,22 +1360,26 @@ def snp_trait_analysis(form):
         for group, group_mean in zip(filtered_groups, group_means):
             for value in group:
                 ss_within += (value - group_mean) ** 2
+        ss_total = ss_between + ss_within
 
         df_between = k - 1
         df_within = total_n - k
         if df_within <= 0:
-            return "", "", "", ""
+            return "", "", "", "", ""
 
         ms_between = ss_between / df_between
         ms_within = ss_within / df_within
+        r2 = ""
+        if ss_total > 0:
+            r2 = ss_between / ss_total
         if ms_within == 0:
-            return "", df_between, df_within, ""
+            return "", df_between, df_within, "", r2
 
         f_stat = ms_between / ms_within
         p_value = ""
         if scipy_f_distribution is not None:
             p_value = scipy_f_distribution.sf(f_stat, df_between, df_within)
-        return f_stat, df_between, df_within, p_value
+        return f_stat, df_between, df_within, p_value, r2
 
     def analyze_snps(rows, snp_columns, trait_col):
         results = []
@@ -1369,7 +1411,7 @@ def snp_trait_analysis(form):
                 count, mean_value, std_dev = summarize_group(genotype_groups[genotype])
                 group_summary.append("{}(n={},mean={:.4f},sd={:.4f})".format(genotype, count, mean_value, std_dev))
 
-            f_stat, df_between, df_within, p_value = one_way_anova([genotype_groups[g] for g in ordered_genotypes])
+            f_stat, df_between, df_within, p_value, r2 = one_way_anova([genotype_groups[g] for g in ordered_genotypes])
             results.append(
                 {
                     "SNP": snp,
@@ -1378,10 +1420,9 @@ def snp_trait_analysis(form):
                     "GenotypeGroups": str(len(genotype_groups)),
                     "GroupSummary": "; ".join(group_summary),
                     "FStatistic": "" if f_stat == "" else "{:.6f}".format(f_stat),
-                    "DF_Between": "" if df_between == "" else str(df_between),
+                    "R2": "" if r2 == "" else "{:.6f}".format(r2),
                     "DF_Within": "" if df_within == "" else str(df_within),
                     "PValue": "" if p_value == "" else "{:.8g}".format(p_value),
-                    "PValueNote": "" if scipy_f_distribution is not None else "SciPy not installed; p-value not calculated",
                 }
             )
         return results
@@ -1442,11 +1483,20 @@ def snp_trait_analysis(form):
 
     snp_columns = detect_snp_columns(merged_headers)
     results = analyze_snps(merged_rows, snp_columns, trait_column)
-    write_csv_dicts(
-        results_file,
-        ["SNP", "Trait", "NonMissingSamples", "GenotypeGroups", "GroupSummary", "FStatistic", "DF_Between", "DF_Within", "PValue", "PValueNote"],
-        results,
-    )
+    results_df = pd.DataFrame(results)
+    results_df = results_df[[
+        "SNP",
+        "Trait",
+        "NonMissingSamples",
+        "GenotypeGroups",
+        "GroupSummary",
+        "FStatistic",
+        "R2",
+        "DF_Within",
+        "PValue",
+    ]]
+    with pd.ExcelWriter(results_file, engine="openpyxl") as writer:
+        results_df.to_excel(writer, sheet_name="anova_results", index=False)
     plot_count = create_significant_boxplots(merged_rows, results, trait_column)
 
     print("Merged file: {}".format(merged_file))
