@@ -1,6 +1,6 @@
 __prog__ = "PlinkUtilsGUI.py"
 __version__ = "1.0.0"
-__author__ = "Mike Martin & Partha Talukdar"
+__author__ = "Michal Martin & Partha Talukdar"
 
 import os
 import sys
@@ -124,7 +124,7 @@ class Form(QWidget):
         w_spacer19 = QLabel("")
         grid.addWidget(w_spacer19, 18, 1)
 
-        w_extract_markers = QPushButton("Plink extract")
+        w_extract_markers = QPushButton("PLINK Extract")
         w_extract_markers.setToolTip("Extract markers")
         grid.addWidget(w_extract_markers, 19, 0)
         w_extract_markers.clicked.connect(self.markerExtraction)
@@ -139,7 +139,7 @@ class Form(QWidget):
         grid.addWidget(w_ld_graph, 19, 2)
         w_ld_graph.clicked.connect(self.runLdDecayGraph)
 
-        w_snp_trait = QPushButton("SNP trait Analysis")
+        w_snp_trait = QPushButton("SNP-Trait Analysis")
         w_snp_trait.setToolTip("Analyze each SNP against the Fe_Phene trait and create boxplots for significant results")
         grid.addWidget(w_snp_trait, 19, 3)
         w_snp_trait.clicked.connect(self.runSnpTraitAnalysis)
@@ -154,7 +154,7 @@ class Form(QWidget):
         grid.addWidget(w_fhbd, 20, 1)
         w_fhbd.clicked.connect(self.runFHBD)
 
-        w_two_snp = QPushButton("2 SNPs Haplotype")
+        w_two_snp = QPushButton("Pairwise Haplotype")
         w_two_snp.setToolTip("Run 2-SNP haplotype ANOVA for each pair in pairs_within_1000bp and write Excel only")
         grid.addWidget(w_two_snp, 20, 2)
         w_two_snp.clicked.connect(self.runTwoSnpAnova)
