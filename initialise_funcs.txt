@@ -57,10 +57,10 @@ def _read_setup_file(form):
     """
     print("USING HARD-CODED SETUP")
 
-    form.plink_exe = r"C:\Partha_Mike\plink\exe_dir\plink2.exe"
-    form.fname_png = r"C:\Partha_Mike\plink\PlinkUtils\Images\plink_logo.png"
-    form.config_dir = r"C:\Partha_Mike\plink\PlinkUtils\setup_config_files"
-    map_ped_dir = r"C:\Partha_Mike\plink\PlinkUtils\map_ped"
+    form.plink_exe = r"C:\BMC_Genomics\plink\exe_dir\plink2.exe"
+    form.fname_png = r"C:\BMC_Genomics\plink\PlinkUtils\Images\plink_workflow_logo.png"
+    form.config_dir = r"C:\BMC_Genomics\plink\PlinkUtils\setup_config_files"
+    map_ped_dir = r"C:\BMC_Genomics\plink\PlinkUtils\map_ped"
 
     if not os.path.isfile(form.plink_exe):
         print("Plink .exe file does not exist:", form.plink_exe)
