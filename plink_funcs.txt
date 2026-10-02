@@ -1497,10 +1497,10 @@ def snp_trait_analysis(form):
     ]]
     with pd.ExcelWriter(results_file, engine="openpyxl") as writer:
         results_df.to_excel(writer, sheet_name="anova_results", index=False)
-    plot_count = create_significant_boxplots(merged_rows, results, trait_column)
+    plot_count = 0  # Automatic SNP boxplots disabled
 
     print("Merged file: {}".format(merged_file))
     print("ANOVA results: {}".format(results_file))
-    print("Box plots: {}".format(boxplot_dir))
+    print("Automatic SNP boxplots disabled.")
     print("SNPs analyzed: {}".format(len(results)))
     print("Box plots created: {}".format(plot_count))
