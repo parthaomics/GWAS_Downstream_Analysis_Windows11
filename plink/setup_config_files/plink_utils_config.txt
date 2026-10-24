@@ -1,0 +1,9 @@
+{
+  "fnames": {
+    "bp_lower": "",
+    "bp_upper": "",
+    "out_dir": "",
+    "plink_chr": "1",
+    "root_name": "Plink_Output"
+  }
+}
