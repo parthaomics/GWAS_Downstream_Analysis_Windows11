@@ -1,5 +1,5 @@
 __prog__ = "PlinkUtilsGUI.py"
-__version__ = "1.1.0"
+__version__ = "1.1.1"
 __author__ = "Michal Martin & Partha Talukdar"
 
 import csv
@@ -32,11 +32,11 @@ from PyQt5.QtWidgets import (
 
 from initialise_funcs import initiation, read_config_file, write_config_file
 from plink_funcs import (
+    candidate_ld_regions,
     extract_markers,
-    formal_haplotype_block_detection,
+    graph_based_ld_clusters,
     ld_decay,
     ld_decay_graph,
-    potential_haplotype,
     snp_trait_analysis,
     two_snp_pair_anova,
     validate_inputs,
@@ -248,15 +248,15 @@ class Form(QWidget):
         grid.addWidget(w_snp_trait, 19, 3)
         w_snp_trait.clicked.connect(self.runSnpTraitAnalysis)
 
-        w_haplotype = QPushButton("Candidate LD Regions")
-        w_haplotype.setToolTip("Summarise spatially adjacent strong-LD pairs as candidate LD regions")
-        grid.addWidget(w_haplotype, 20, 0)
-        w_haplotype.clicked.connect(self.runPotentialHaplotype)
+        w_candidate_ld = QPushButton("Candidate LD Regions")
+        w_candidate_ld.setToolTip("Summarise spatially adjacent strong-LD pairs as candidate LD regions")
+        grid.addWidget(w_candidate_ld, 20, 0)
+        w_candidate_ld.clicked.connect(self.runCandidateLdRegions)
 
-        w_fhbd = QPushButton("Graph-Based LD Clusters")
-        w_fhbd.setToolTip("Group strong-LD SNP relationships into graph-based connected components")
-        grid.addWidget(w_fhbd, 20, 1)
-        w_fhbd.clicked.connect(self.runFHBD)
+        w_ld_clusters = QPushButton("Graph-Based LD Clusters")
+        w_ld_clusters.setToolTip("Group strong-LD SNP relationships into graph-based connected components")
+        grid.addWidget(w_ld_clusters, 20, 1)
+        w_ld_clusters.clicked.connect(self.runGraphBasedLdClusters)
 
         w_two_snp = QPushButton("Pairwise Genotype Combinations")
         w_two_snp.setToolTip("Compare grain Fe among homozygous two-locus genotype-combination groups")
@@ -295,13 +295,13 @@ class Form(QWidget):
         if validate_inputs(self):
             ld_decay_graph(self)
 
-    def runPotentialHaplotype(self):
+    def runCandidateLdRegions(self):
         if validate_inputs(self):
-            potential_haplotype(self)
+            candidate_ld_regions(self)
 
-    def runFHBD(self):
+    def runGraphBasedLdClusters(self):
         if validate_inputs(self):
-            formal_haplotype_block_detection(self)
+            graph_based_ld_clusters(self)
 
     def runTwoSnpAnova(self):
         if validate_inputs(self):

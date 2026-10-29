@@ -102,6 +102,13 @@ python plinkUtilsGUI.py
 
 Recommended order: PLINK Extract, LD Decay, LD Decay Graph, Exploratory SNP-Trait Analysis, Candidate LD Regions, Graph-Based LD Clusters and Pairwise Genotype Combinations.
 
+The **Candidate LD Regions** module writes
+`<root>_candidate_ld_regions.xlsx`. The **Graph-Based LD Clusters** module
+reads that workbook and writes `<root>_graph_based_ld_clusters.xlsx`.
+Corresponding backend functions are named `candidate_ld_regions()` and
+`graph_based_ld_clusters()` to reflect that these procedures summarise LD and
+do not infer haplotype blocks.
+
 ## Analytical notes
 
 Regional extraction applies chromosome and position criteria but does not independently apply minor-allele-frequency, missingness, heterozygosity or Hardy-Weinberg-equilibrium filters. Appropriate quality control should be completed before regional analysis.

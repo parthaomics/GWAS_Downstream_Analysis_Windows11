@@ -3,7 +3,7 @@
 # Purpose:     helper functions for PLINK utility GUI
 # Author:      Michal Martin & Partha Talukdar
 # Created:     09/06/2026
-# Version:     1.1.0
+# Version:     1.1.1
 #-------------------------------------------------------------------------------
 
 import csv
@@ -22,11 +22,10 @@ try:
 except Exception:
     scipy_f_distribution = None
 
-HAPLOTYPE_MAX_DISTANCE_BP = 1000
-HAPLOTYPE_LD_THRESHOLD = 0.6
+LD_MAX_DISTANCE_BP = 1000
+LD_R2_THRESHOLD = 0.6
 VALID_HOMOZYGOTES = {"AA", "TT", "GG", "CC"}
 
-R2_THRESHOLD = 0.6
 SIGNIFICANCE_THRESHOLD = 0.05
 MIN_GROUP_SIZE = 3
 HOMOZYGOUS_CALL_RATE_THRESHOLD = 0.90
@@ -349,12 +348,13 @@ def ld_decay_graph(form):
     webbrowser.open("file://" + os.path.abspath(png_file))
 
 
-def potential_haplotype(form):
+def candidate_ld_regions(form):
+    """Summarise spatially adjacent strong-LD pairs as candidate LD regions."""
     out_dir = form.w_lbl_outdir.text()
     root_name = form.w_root_name.text() or "plink"
 
     vcor_file = os.path.join(out_dir, root_name + "_ld_decay.vcor")
-    xlsx_file = os.path.join(out_dir, root_name + "_potential_haplotype.xlsx")
+    xlsx_file = os.path.join(out_dir, root_name + "_candidate_ld_regions.xlsx")
 
     if not os.path.isfile(vcor_file):
         print("VCOR file not found: " + vcor_file)
@@ -370,7 +370,7 @@ def potential_haplotype(form):
             pos_b = int(row["POS_B"])
             distance_bp = abs(pos_b - pos_a)
 
-            if distance_bp <= HAPLOTYPE_MAX_DISTANCE_BP:
+            if distance_bp <= LD_MAX_DISTANCE_BP:
                 pairs.append({
                     "chrom_a": row["#CHROM_A"],
                     "pos_a": pos_a,
@@ -383,18 +383,18 @@ def potential_haplotype(form):
                 })
 
     if not pairs:
-        print(f"No SNP pairs found within {HAPLOTYPE_MAX_DISTANCE_BP} bp in the .vcor file.")
+        print(f"No SNP pairs found within {LD_MAX_DISTANCE_BP} bp in the .vcor file.")
         wb = Workbook()
         ws = wb.active
-        ws.title = "candidate_haplotypes"
+        ws.title = "candidate_ld_regions"
         ws.append(["message"])
-        ws.append([f"No SNP pairs found within {HAPLOTYPE_MAX_DISTANCE_BP} bp"])
+        ws.append([f"No SNP pairs found within {LD_MAX_DISTANCE_BP} bp"])
         wb.save(xlsx_file)
-        print("Potential haplotype Excel saved to: " + xlsx_file)
+        print("Candidate LD-region Excel saved to: " + xlsx_file)
         webbrowser.open("file://" + os.path.abspath(xlsx_file))
         return
 
-    strong_pairs = [p for p in pairs if p["r2"] >= HAPLOTYPE_LD_THRESHOLD]
+    strong_pairs = [p for p in pairs if p["r2"] >= LD_R2_THRESHOLD]
     strong_pairs.sort(key=lambda x: (x["pos_a"], x["pos_b"]))
 
     wb = Workbook()
@@ -402,18 +402,18 @@ def potential_haplotype(form):
     ws0 = wb.active
     ws0.title = "settings"
     ws0.append(["parameter", "value"])
-    ws0.append(["max_distance_bp", HAPLOTYPE_MAX_DISTANCE_BP])
-    ws0.append(["ld_threshold", HAPLOTYPE_LD_THRESHOLD])
+    ws0.append(["max_distance_bp", LD_MAX_DISTANCE_BP])
+    ws0.append(["ld_threshold", LD_R2_THRESHOLD])
     ws0.append(["selected_bp_lower", form.w_bp_lower.text()])
     ws0.append(["selected_bp_upper", form.w_bp_upper.text()])
 
-    ws1 = wb.create_sheet("candidate_haplotypes")
+    ws1 = wb.create_sheet("candidate_ld_regions")
     ws1.append([
-        "block_id",
+        "region_id",
         "chromosome",
         "start_bp",
         "end_bp",
-        "block_size_bp",
+        "region_size_bp",
         "num_snps",
         "mean_r2",
         "min_r2",
@@ -422,53 +422,53 @@ def potential_haplotype(form):
     ])
 
     if strong_pairs:
-        blocks = []
+        regions = []
         current = None
 
         for pair in strong_pairs:
-            block_start = min(pair["pos_a"], pair["pos_b"])
-            block_end = max(pair["pos_a"], pair["pos_b"])
+            region_start = min(pair["pos_a"], pair["pos_b"])
+            region_end = max(pair["pos_a"], pair["pos_b"])
 
             if current is None:
                 current = {
                     "chromosome": pair["chrom_a"],
-                    "start_bp": block_start,
-                    "end_bp": block_end,
+                    "start_bp": region_start,
+                    "end_bp": region_end,
                     "snps": set([pair["id_a"], pair["id_b"]]),
                     "r2_values": [pair["r2"]],
                 }
                 continue
 
-            if block_start <= current["end_bp"] + HAPLOTYPE_MAX_DISTANCE_BP:
-                current["end_bp"] = max(current["end_bp"], block_end)
+            if region_start <= current["end_bp"] + LD_MAX_DISTANCE_BP:
+                current["end_bp"] = max(current["end_bp"], region_end)
                 current["snps"].update([pair["id_a"], pair["id_b"]])
                 current["r2_values"].append(pair["r2"])
             else:
-                blocks.append(current)
+                regions.append(current)
                 current = {
                     "chromosome": pair["chrom_a"],
-                    "start_bp": block_start,
-                    "end_bp": block_end,
+                    "start_bp": region_start,
+                    "end_bp": region_end,
                     "snps": set([pair["id_a"], pair["id_b"]]),
                     "r2_values": [pair["r2"]],
                 }
 
         if current is not None:
-            blocks.append(current)
+            regions.append(current)
 
-        for idx, block in enumerate(blocks, start=1):
-            mean_r2 = sum(block["r2_values"]) / len(block["r2_values"])
+        for idx, region in enumerate(regions, start=1):
+            mean_r2 = sum(region["r2_values"]) / len(region["r2_values"])
             ws1.append([
                 idx,
-                block["chromosome"],
-                block["start_bp"],
-                block["end_bp"],
-                block["end_bp"] - block["start_bp"],
-                len(block["snps"]),
+                region["chromosome"],
+                region["start_bp"],
+                region["end_bp"],
+                region["end_bp"] - region["start_bp"],
+                len(region["snps"]),
                 round(mean_r2, 4),
-                round(min(block["r2_values"]), 4),
-                round(max(block["r2_values"]), 4),
-                ", ".join(sorted(block["snps"])),
+                round(min(region["r2_values"]), 4),
+                round(max(region["r2_values"]), 4),
+                ", ".join(sorted(region["snps"])),
             ])
     else:
         ws1.append([
@@ -481,7 +481,7 @@ def potential_haplotype(form):
             "",
             "",
             "",
-            f"No candidate haplotype blocks found at r2 >= {HAPLOTYPE_LD_THRESHOLD}",
+            f"No candidate LD regions found at r2 >= {LD_R2_THRESHOLD}",
         ])
 
     ws2 = wb.create_sheet("pairs_within_1000bp")
@@ -507,37 +507,38 @@ def potential_haplotype(form):
             pair["id_b"],
             pair["distance_bp"],
             round(pair["r2"], 4),
-            "YES" if pair["r2"] >= HAPLOTYPE_LD_THRESHOLD else "NO",
+            "YES" if pair["r2"] >= LD_R2_THRESHOLD else "NO",
         ])
 
     wb.save(xlsx_file)
-    print("Potential haplotype Excel saved to: " + xlsx_file)
+    print("Candidate LD-region Excel saved to: " + xlsx_file)
     webbrowser.open("file://" + os.path.abspath(xlsx_file))
 
 
-def read_candidate_haplotypes(xlsx_path):
-    df = pd.read_excel(xlsx_path, sheet_name="candidate_haplotypes")
+def read_candidate_ld_regions(xlsx_path):
+    """Read candidate LD-region summaries from a workbook."""
+    df = pd.read_excel(xlsx_path, sheet_name="candidate_ld_regions")
     df = df.dropna(subset=["snp_ids"])
     df = df[df["snp_ids"].astype(str).str.strip() != ""].copy()
 
-    blocks = []
+    regions = []
     for _, row in df.iterrows():
         snp_ids = [x.strip() for x in str(row["snp_ids"]).split(",") if x.strip()]
         if not snp_ids:
             continue
-        blocks.append({
-            "block_id": row["block_id"],
+        regions.append({
+            "region_id": row["region_id"],
             "chromosome": row.get("chromosome", ""),
             "start_bp": row.get("start_bp", ""),
             "end_bp": row.get("end_bp", ""),
-            "block_size_bp": row.get("block_size_bp", ""),
+            "region_size_bp": row.get("region_size_bp", ""),
             "num_snps": row.get("num_snps", len(snp_ids)),
             "mean_r2": row.get("mean_r2", ""),
             "min_r2": row.get("min_r2", ""),
             "max_r2": row.get("max_r2", ""),
             "snp_ids": snp_ids,
         })
-    return blocks
+    return regions
 
 
 def read_pairs(xlsx_path):
@@ -557,8 +558,8 @@ def read_pairs(xlsx_path):
 
     df = df.dropna(subset=["r2", "pos_a", "pos_b", "distance_bp"]).copy()
     df = df[
-        (df["r2"] >= R2_THRESHOLD) &
-        (df["distance_bp"] <= HAPLOTYPE_MAX_DISTANCE_BP)
+        (df["r2"] >= LD_R2_THRESHOLD) &
+        (df["distance_bp"] <= LD_MAX_DISTANCE_BP)
     ].copy()
 
     df["pair_key"] = df.apply(
@@ -622,7 +623,8 @@ def read_ped_subset_raw(ped_path, snp_index):
     return pd.DataFrame(subset_rows)
 
 
-def build_haplotype_code(row, snp_ids):
+def build_multilocus_genotype_code(row, snp_ids):
+    """Combine unphased diploid genotype codes across specified SNPs."""
     vals = []
     for snp in snp_ids:
         gt = row.get(snp)
@@ -703,27 +705,31 @@ def _load_phenotype_and_merge(ped_df, pheno_file, trait_column):
     return merged
 
 
-def formal_haplotype_block_detection(form):
+def graph_based_ld_clusters(form):
     """
-    Formal LD block detection from the strong pair table using connected components.
+    Group strong-LD relationships into graph-based connected components.
+
+    This is a threshold-dependent network summary and does not infer haplotype
+    blocks or estimate chromosomal phase.
+
     Output:
     - settings
-    - formal_haplotype_blocks
+    - graph_based_ld_clusters
     - pairs_used
     """
     out_dir = form.w_lbl_outdir.text()
     root_name = form.w_root_name.text() or "plink"
 
-    hap_xlsx = os.path.join(out_dir, root_name + "_potential_haplotype.xlsx")
-    output_xlsx = os.path.join(out_dir, root_name + "_FHBD_results.xlsx")
+    region_xlsx = os.path.join(out_dir, root_name + "_candidate_ld_regions.xlsx")
+    output_xlsx = os.path.join(out_dir, root_name + "_graph_based_ld_clusters.xlsx")
 
-    if not os.path.isfile(hap_xlsx):
-        print("Potential haplotype Excel not found: " + hap_xlsx)
-        print("Run Potential Haplotype first.")
+    if not os.path.isfile(region_xlsx):
+        print("Candidate LD-region Excel not found: " + region_xlsx)
+        print("Run Candidate LD Regions first.")
         return
 
-    print("Reading pairwise LD data for formal block detection...")
-    pair_df = pd.read_excel(hap_xlsx, sheet_name="pairs_within_1000bp")
+    print("Reading pairwise LD data for graph-based clustering...")
+    pair_df = pd.read_excel(region_xlsx, sheet_name="pairs_within_1000bp")
     needed = {"chrom_a", "pos_a", "id_a", "chrom_b", "pos_b", "id_b", "r2"}
     missing = needed - set(pair_df.columns)
     if missing:
@@ -744,8 +750,8 @@ def formal_haplotype_block_detection(form):
     pair_df["id_b"] = pair_df["id_b"].astype(str).str.strip()
 
     strong_df = pair_df[
-        (pair_df["r2"] >= HAPLOTYPE_LD_THRESHOLD) &
-        (pair_df["distance_bp"] <= HAPLOTYPE_MAX_DISTANCE_BP) &
+        (pair_df["r2"] >= LD_R2_THRESHOLD) &
+        (pair_df["distance_bp"] <= LD_MAX_DISTANCE_BP) &
         (pair_df["chrom_a"] == pair_df["chrom_b"])
     ].copy()
 
@@ -754,19 +760,19 @@ def formal_haplotype_block_detection(form):
     ws0 = wb.active
     ws0.title = "settings"
     ws0.append(["parameter", "value"])
-    ws0.append(["method", "formal_connected_components"])
-    ws0.append(["max_distance_bp", HAPLOTYPE_MAX_DISTANCE_BP])
-    ws0.append(["ld_threshold", HAPLOTYPE_LD_THRESHOLD])
+    ws0.append(["method", "graph_connected_components"])
+    ws0.append(["max_distance_bp", LD_MAX_DISTANCE_BP])
+    ws0.append(["ld_threshold", LD_R2_THRESHOLD])
     ws0.append(["selected_bp_lower", form.w_bp_lower.text()])
     ws0.append(["selected_bp_upper", form.w_bp_upper.text()])
 
-    ws1 = wb.create_sheet("formal_haplotype_blocks")
+    ws1 = wb.create_sheet("graph_based_ld_clusters")
     ws1.append([
-        "block_id",
+        "cluster_id",
         "chromosome",
         "start_bp",
         "end_bp",
-        "block_size_bp",
+        "cluster_span_bp",
         "num_snps",
         "num_pairs",
         "mean_r2",
@@ -777,7 +783,7 @@ def formal_haplotype_block_detection(form):
 
     ws2 = wb.create_sheet("pairs_used")
     ws2.append([
-        "block_id",
+        "cluster_id",
         "chromosome",
         "id_a",
         "pos_a",
@@ -789,11 +795,11 @@ def formal_haplotype_block_detection(form):
 
     if strong_df.empty:
         ws1.append(["message"])
-        ws1.append([f"No strong LD pairs found at r2 >= {HAPLOTYPE_LD_THRESHOLD}"])
+        ws1.append([f"No strong LD pairs found at r2 >= {LD_R2_THRESHOLD}"])
         ws2.append(["message"])
-        ws2.append([f"No strong LD pairs found at r2 >= {HAPLOTYPE_LD_THRESHOLD}"])
+        ws2.append([f"No strong LD pairs found at r2 >= {LD_R2_THRESHOLD}"])
         wb.save(output_xlsx)
-        print("Formal haplotype block Excel saved to: " + output_xlsx)
+        print("Graph-based LD-cluster Excel saved to: " + output_xlsx)
         webbrowser.open("file://" + os.path.abspath(output_xlsx))
         return
 
@@ -857,10 +863,10 @@ def formal_haplotype_block_detection(form):
 
     component_list.sort(key=lambda x: (_chrom_sort_key(x[0]), int(x[1])))
 
-    block_rows = []
+    cluster_rows = []
     edge_rows = []
 
-    block_id = 0
+    cluster_id = 0
     for chrom, _, comp_snps_sorted in component_list:
         if len(comp_snps_sorted) < 2:
             continue
@@ -874,17 +880,17 @@ def formal_haplotype_block_detection(form):
         if comp_edges.empty:
             continue
 
-        block_id += 1
+        cluster_id += 1
         start_bp = min(snp_meta[s]["pos"] for s in comp_snps_sorted)
         end_bp = max(snp_meta[s]["pos"] for s in comp_snps_sorted)
         r2_values = comp_edges["r2"].astype(float).tolist()
 
-        block_rows.append({
-            "block_id": block_id,
+        cluster_rows.append({
+            "cluster_id": cluster_id,
             "chromosome": chrom,
             "start_bp": start_bp,
             "end_bp": end_bp,
-            "block_size_bp": end_bp - start_bp,
+            "cluster_span_bp": end_bp - start_bp,
             "num_snps": len(comp_snps_sorted),
             "num_pairs": len(comp_edges),
             "mean_r2": round(sum(r2_values) / len(r2_values), 4),
@@ -895,7 +901,7 @@ def formal_haplotype_block_detection(form):
 
         for _, row in comp_edges.iterrows():
             edge_rows.append({
-                "block_id": block_id,
+                "cluster_id": cluster_id,
                 "chromosome": chrom,
                 "id_a": row["id_a"],
                 "pos_a": int(row["pos_a"]),
@@ -905,14 +911,14 @@ def formal_haplotype_block_detection(form):
                 "r2": round(float(row["r2"]), 4),
             })
 
-    if block_rows:
-        for row in block_rows:
+    if cluster_rows:
+        for row in cluster_rows:
             ws1.append([
-                row["block_id"],
+                row["cluster_id"],
                 row["chromosome"],
                 row["start_bp"],
                 row["end_bp"],
-                row["block_size_bp"],
+                row["cluster_span_bp"],
                 row["num_snps"],
                 row["num_pairs"],
                 row["mean_r2"],
@@ -922,12 +928,12 @@ def formal_haplotype_block_detection(form):
             ])
     else:
         ws1.append(["message"])
-        ws1.append(["No formal haplotype blocks were detected."])
+        ws1.append(["No graph-based LD clusters were detected."])
 
     if edge_rows:
         for row in edge_rows:
             ws2.append([
-                row["block_id"],
+                row["cluster_id"],
                 row["chromosome"],
                 row["id_a"],
                 row["pos_a"],
@@ -938,10 +944,10 @@ def formal_haplotype_block_detection(form):
             ])
     else:
         ws2.append(["message"])
-        ws2.append(["No pairs were assigned to any formal block."])
+        ws2.append(["No pairs were assigned to any graph-based LD cluster."])
 
     wb.save(output_xlsx)
-    print("Formal haplotype block Excel saved to: " + output_xlsx)
+    print("Graph-based LD-cluster Excel saved to: " + output_xlsx)
     webbrowser.open("file://" + os.path.abspath(output_xlsx))
 
 
@@ -952,7 +958,7 @@ def two_snp_pair_anova(form):
 
     ped_file = os.path.join(out_dir, root_name + ".ped")
     map_file = os.path.join(out_dir, root_name + ".map")
-    pairs_xlsx = os.path.join(out_dir, root_name + "_potential_haplotype.xlsx")
+    pairs_xlsx = os.path.join(out_dir, root_name + "_candidate_ld_regions.xlsx")
     output_xlsx = os.path.join(out_dir, root_name + "_two_snp_pair_anova_results.xlsx")
     trait_column = "AWD_Fe57_grain_Y1"
 
@@ -971,8 +977,8 @@ def two_snp_pair_anova(form):
     print("Reading qualifying SNP pairs...")
     pair_df = read_pairs(pairs_xlsx)
     if pair_df.empty:
-        raise ValueError(f"No SNP pairs found with r2 >= {R2_THRESHOLD}")
-    print(f"Pairs with r2 >= {R2_THRESHOLD}: {len(pair_df)}")
+        raise ValueError(f"No SNP pairs found with r2 >= {LD_R2_THRESHOLD}")
+    print(f"Pairs with r2 >= {LD_R2_THRESHOLD}: {len(pair_df)}")
 
     map_df = read_map(map_file)
     bp_to_info = build_bp_to_index(map_df)
